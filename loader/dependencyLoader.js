@@ -1,103 +1,107 @@
 // 09.03.2021
 // F.p.
+import JSEnhanced from '../toolset/JSEnhanced.js';
+export default class dependencyLoader {
 
-class dependencyLoader {
+  types = {
+    'js':{
+      'type':'text/javascript',
+      'src':url
+    },
+    'css':{
+      'type':"text/css",
+      'rel':'stylesheet',
+      'href':url
+    }
+  };
 
-
+  dependencies = [{
+                    "type":"js",
+                    "url":"https://code.jquery.com/jquery-3.6.0.js"
+  }];
+  targetToAttach = "head";
+  postLoad = true;
   constructor(){
-
-    this.dependencies = {};
+    dependencyLoader.loadDependency(this.dependencies);
     return this;
   }
-  (function() {
-    "use strict";
+  /* loading dependencies recursively
+    - dependency contains an array of elements to laod
+    - targetToAttach
+    - postLoad enables post process after the last element has been loaded.
+      To override this part, example:
+      dependencyLoader.prototype.postLoadOperations = function(){
+          if(this.isFirstLoad){
+              this.isFirstLoad = false;
+              this.postLoadOperationsCounter = 1;
 
-
-    var dependencies = [{
-                            "type":"js",
-                            "url":"https://sol3.diviteldatacenter.com/public/zmi_ace/jquery-3.5.1.min.js"
-                        },
-                        {
-                          "type":"js",
-                          "url":"https://sol3.diviteldatacenter.com/public/zmi_ace/bootstrap-4.6.0/bootstrap.bundle.min.js"
-                      },
-                      {
-                          "type":"css",
-                          "url":"https://sol3.diviteldatacenter.com/public/zmi_ace/bootstrap-4.6.0/bootstrap.min.css"
-                      },
-                      {
-                          "type":"css",
-                          "url":"https://sol3.diviteldatacenter.com/public/zmi_ace/zmi_base.css"
-                      },
-                      {
-                          "type":"js",
-                          "url":"https://sol3.diviteldatacenter.com/public/zmi_ace/zmi_base.js"
-                      },
-    ];
-
-    loadLib(url) {
-      var lib,
-          head = document.getElementsByTagName("head")[0];
-
-      if(url.indexOf('js') !== -1){
-        lib = document.createElement("script");
-        lib.type = "text/javascript";
-        lib.src = url;
-      } else if (url.indexOf('css') !== -1){
-        lib = document.createElement("link");
-        lib.type = "text/css";
-        lib.rel = "stylesheet";
-        lib.href = url;
-      } else {
-        /* Unhandled type, to add */
-
+              // getting instance locally
+              var instance = this;
+              // load dependencies for all subframes
+              console.log("load of script ended, and post load executed");
+          } else {
+              this.postLoadOperationsCounter++;
+          }
+      };
+   */
+  static loadDependency(dependency,targetToAttach,postLoad){
+      if(dependency == ''){
+          return false;
       }
+      var item = dependency[0],
+          isLast = dependency.length==1?true:false;
+          instance = this,
+          targetToAttach = JSEnhanced.contextualizeObject(targetToAttach) || "head",
+          postLoad = postLoad || false,
+          scriptLoaded;
 
-      // add new element to page
-      head.appendChild(lib);
-
-      return lib;
-    }
-
-    //console.log('loadedUserScript',document.querySelectorAll('frame[name=manage_main]'));
-    loadDependency(dependencies){
-
-    }
-    /**
-    * Basically load a set of dependencies
-    * dependency = ["test.js","test.css"]
-    */
-    loadDependencies(dependencies){
-        // carico tutte le dipendenze
-        var scriptLoaded = [];
-        // lancio il loading delle librerie.
-        dependencies.forEach((dependency)=>{
-          scriptLoaded = loadLib(dependency);
+      scriptLoaded = dependencyLoader.loadLib();
+      if(!isLast){
           scriptLoaded.addEventListener(
               "load",
               function() {
-                  // cancello il penultimo elemento
-                  dependency.shift();
-                  loadDependency(dependency);
+                  // keeping elements next to the computed one.
+                  dependencyLoader.loadDependency(dependency.slice(1,),refDocument,postLoad);
               }
           );
-          scriptLoaded.push(loadLib(dependency));
-        });
-
-
-        if(dependency.length> 1){
-            scriptLoaded.addEventListener(
-                "load",
-                function() {
-                    // cancello il penultimo elemento
-                    dependency.shift();
-                    loadDependency(dependency);
-                }
-            );
-        } else if (dependency.length == 1){
-            // se sono all'ultima dipendenza, carico "finalmente" lo script principale.
-                   console.log("script loaded:",new Date());
+      } else {
+        if(postLoad){
+          this.postLoadOperations();
         }
+      }
+  }
+  /* For certain mapped types, allows to get a structured config to createElem*/
+  static generateLibraryStructure(extension,url){
+    extension = extension || "";
+    url = url || "";
 
+    mapped = (extension in types)?true:false;
+    if(mapped){
+      return dependencyLoader.types[extension];
+    } else {
+      console.error("Given object type {extension} not mapped into generateLibraryStructure");
+      return false;
     }
+  }
+  /* adds a library to the HTML head */
+  static loadLib(url,targetToAttach) {
+    var lib,
+        file_ext = url.split('.').pop(),
+        element =  JSEnhanced.contextualizeObject(targetToAttach) || document.getElementsByTagName("head")[0],
+        structure = dependencyLoader.generateLibraryStructure(file_ext,url);
+
+    if(structure){
+      JSEnhanced.setAttributes(document.createElement(structure.element));
+    } else {
+      /* Unhandled type, to add */
+    }
+
+    if(element){
+      // add new element to target
+      element.appendChild(lib)
+      return lib;
+    } else {
+      return false;
+    }
+  }
 }
